@@ -1,9 +1,38 @@
-# dji-mic-flow
+# dji-mic-wispr-flow
 
 Use the DJI Mic Mini 2 transmitter's linking button as a wireless remote for
 [Wispr Flow](https://wisprflow.ai) dictation on macOS. Press the button on the
 mic clipped to your collar → Flow starts hands-free dictation; press again →
-Flow stops and inserts the text at the cursor.
+Flow stops and inserts the text at the cursor. Works from across the room —
+the press travels over DJI's own wireless link, not Bluetooth.
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/caezium/dji-mic-wispr-flow/main/install.sh | bash
+```
+
+The script installs Karabiner-Elements if needed and **merges** the rule into
+your existing Karabiner config (existing rules and devices are kept; a
+timestamped backup is written next to it; re-running updates the rule in
+place). Then two one-time permission grants:
+
+1. Approve the Karabiner driver extension when prompted.
+2. System Settings → Privacy & Security → Input Monitoring → enable
+   `karabiner_grabber`.
+
+Plug in the DJI receiver (USB-C), set Wispr Flow's mic to "Wireless Mic Rx",
+make sure Flow's hands-free shortcut is **Fn+Space** (the default target), and
+press the transmitter's linking button.
+
+Different Flow shortcut? Pass it in:
+
+```bash
+HOTKEY_KEY=left_option HOTKEY_MODS=left_control ./install.sh   # Ctrl+Opt
+HOTKEY_KEY=f13 HOTKEY_MODS= ./install.sh                       # bare F13
+```
+
+`HOTKEY_MODS` takes `+`-separated [Karabiner modifier names](https://karabiner-elements.pqrs.org/docs/json/complex-modifications-manipulator-definition/from/modifiers/).
 
 ## How it works
 
@@ -21,10 +50,10 @@ TX button ─(DJI wireless link)→ RX ─(USB HID volume key)→ Karabiner ─(
 - Works only with the RX plugged in (USB-C). Bluetooth-only mode exposes a bare
   audio device (HFP), no button events.
 - The rule matches `volume_increment` and `volume_decrement` from the DJI
-  device, so keyboard volume keys are unaffected. While the RX is plugged in,
-  its button no longer changes system volume.
-- Wispr Flow hands-free shortcut assumed: **Fn+Space** (tap to start, tap to
-  stop). Adjust the `to` events in the rule if yours differs.
+  device only, so keyboard volume keys are unaffected. While the RX is plugged
+  in, its button no longer changes system volume.
+- The original Mic Mini should work identically — its receiver reports the
+  same USB IDs (untested here; the Mini 2 is what I own).
 
 ## Device identifiers
 
@@ -37,23 +66,12 @@ TX button ─(DJI wireless link)→ RX ─(USB HID volume key)→ Karabiner ─(
 
 The `is_consumer` flag matters: Karabiner ignores non-keyboard consumer-control
 devices unless the profile's `devices` list has an entry with `ignore: false`
-for these identifiers (included in the config here).
+for these identifiers. The installer adds it.
 
-## Restore
+## Repo contents
 
-```bash
-./install.sh
-```
-
-Or manually:
-
-1. `brew install --cask karabiner-elements`
-2. Copy `karabiner/karabiner.json` to `~/.config/karabiner/karabiner.json`
-   (merge the rule + devices entry instead if you already have a config).
-3. Launch Karabiner-Elements, approve the driver extension, and grant
-   `karabiner_grabber` Input Monitoring in System Settings → Privacy & Security.
-4. Plug in the DJI receiver, set Wispr Flow's mic to "Wireless Mic Rx",
-   make sure Flow's hands-free shortcut is Fn+Space, press the TX button.
+- `install.sh` — self-contained installer/merger (the one-liner above).
+- `karabiner/karabiner.json` — reference snapshot of a full working config.
 
 ## Credits
 
