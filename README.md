@@ -34,6 +34,31 @@ HOTKEY_KEY=f13 HOTKEY_MODS= ./install.sh                       # bare F13
 
 `HOTKEY_MODS` takes `+`-separated [Karabiner modifier names](https://karabiner-elements.pqrs.org/docs/json/complex-modifications-manipulator-definition/from/modifiers/).
 
+### Cycle mode: start / stop / Enter
+
+Handy for dictating prompts into a terminal or chat box without touching the
+keyboard:
+
+```bash
+MODE=cycle ./install.sh
+# or: curl -fsSL https://raw.githubusercontent.com/caezium/dji-mic-wispr-flow/main/install.sh | MODE=cycle bash
+```
+
+| Press | Action |
+|---|---|
+| 1 | start Flow (hands-free shortcut) |
+| 2 | stop Flow — text is inserted |
+| 3 | Enter |
+
+You can edit the text with the keyboard between press 2 and press 3. If
+nothing is touched for 60 s after press 2, the Enter step expires and the next
+press starts a new dictation (`CYCLE_TIMEOUT_MS` changes this). If you also
+start/stop Flow from the keyboard the cycle can get one step out of sync; one
+extra press realigns it. Re-run without `MODE` to go back to plain toggling.
+
+Why a press count and not a second button or a double-press? See the notes
+under *How it works*.
+
 ## How it works
 
 The Mic Mini 2 has a camera-shutter remote feature: when the receiver (RX) is
@@ -52,6 +77,14 @@ TX button ─(DJI wireless link)→ RX ─(USB HID volume key)→ Karabiner ─(
 - The rule matches `volume_increment` and `volume_decrement` from the DJI
   device only, so keyboard volume keys are unaffected. While the RX is plugged
   in, its button no longer changes system volume.
+- Only one key code ever arrives. In testing, the other button that produced
+  an event at all sent the very same `volume_increment` as the linking button,
+  so a second button can't be given its own action.
+- Avoid fast double-presses: they never reached the Mac in testing, and
+  double-pressing the receiver's button (then holding) puts the system into
+  DJI's blue-mode pairing — flickering blue LED, no button events until it is
+  re-paired (charging case, or hold the RX linking button until it blinks
+  green, then hold the TX linking button → solid green).
 - The original Mic Mini should work identically — its receiver reports the
   same USB IDs (untested here; the Mini 2 is what I own).
 

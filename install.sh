@@ -8,12 +8,22 @@
 #   HOTKEY_KEY=spacebar HOTKEY_MODS=fn ./install.sh
 #   HOTKEY_KEY=left_option HOTKEY_MODS=left_control ./install.sh   # Ctrl+Opt
 #
+# Mode (default: toggle — every press toggles Flow on/off):
+#   MODE=cycle ./install.sh   # press 1 = start, press 2 = stop, press 3 = Enter
+#   MODE=cycle CYCLE_TIMEOUT_MS=30000 ./install.sh   # Enter step expires sooner
+#
 # Merges into ~/.config/karabiner/karabiner.json non-destructively:
 # existing rules and devices are kept; re-running updates the rule in place.
 set -euo pipefail
 
 HOTKEY_KEY="${HOTKEY_KEY:-spacebar}"
 HOTKEY_MODS="${HOTKEY_MODS:-fn}"
+MODE="${MODE:-toggle}"
+CYCLE_TIMEOUT_MS="${CYCLE_TIMEOUT_MS:-60000}"
+case "$MODE" in
+    toggle|cycle) ;;
+    *) echo "MODE must be 'toggle' or 'cycle' (got '$MODE')" >&2; exit 1 ;;
+esac
 
 if [ ! -d "/Applications/Karabiner-Elements.app" ]; then
     if ! command -v brew >/dev/null; then
@@ -31,12 +41,15 @@ if [ -f "$CONFIG" ]; then
     cp "$CONFIG" "$CONFIG.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
-HOTKEY_KEY="$HOTKEY_KEY" HOTKEY_MODS="$HOTKEY_MODS" CONFIG="$CONFIG" python3 <<'PYEOF'
+HOTKEY_KEY="$HOTKEY_KEY" HOTKEY_MODS="$HOTKEY_MODS" MODE="$MODE" \
+CYCLE_TIMEOUT_MS="$CYCLE_TIMEOUT_MS" CONFIG="$CONFIG" python3 <<'PYEOF'
 import json, os
 
 config_path = os.environ["CONFIG"]
 key = os.environ["HOTKEY_KEY"]
 mods = [m for m in os.environ["HOTKEY_MODS"].split("+") if m]
+mode = os.environ["MODE"]
+cycle_timeout_ms = int(os.environ["CYCLE_TIMEOUT_MS"])
 
 VENDOR, PRODUCT = 11427, 16401
 RULE_DESC = "DJI Mic button -> Wispr Flow"
@@ -45,18 +58,62 @@ device_cond = {
     "type": "device_if",
     "identifiers": [{"vendor_id": VENDOR, "product_id": PRODUCT}],
 }
-rule = {
-    "description": RULE_DESC,
-    "manipulators": [
+CODES = ("volume_increment", "volume_decrement")
+
+
+def from_event(code):
+    return {"consumer_key_code": code, "modifiers": {"optional": ["any"]}}
+
+
+if mode == "toggle":
+    manipulators = [
         {
             "type": "basic",
             "conditions": [device_cond],
-            "from": {"consumer_key_code": c, "modifiers": {"optional": ["any"]}},
+            "from": from_event(c),
             "to": [to_event],
         }
-        for c in ("volume_increment", "volume_decrement")
-    ],
-}
+        for c in CODES
+    ]
+else:
+    # cycle: press 1 = start, press 2 = stop, press 3 = Enter.
+    # State lives in a Karabiner variable: 0 idle, 1 dictating, 2 stopped.
+    # Every DJI button arrives as the same volume key, so a second button
+    # can't be told apart; the press count does the work instead.
+    VAR = "dji_wispr_state"
+
+    def state(n):
+        return {"set_variable": {"name": VAR, "value": n}}
+
+    def state_is(n):
+        return {"type": "variable_if", "name": VAR, "value": n}
+
+    manipulators = []
+    for c in CODES:
+        manipulators += [
+            {   # press 3: Enter, back to idle
+                "type": "basic",
+                "conditions": [device_cond, state_is(2)],
+                "from": from_event(c),
+                "to": [state(0), {"key_code": "return_or_enter"}],
+            },
+            {   # press 2: stop; the Enter step expires if nothing is touched
+                "type": "basic",
+                "conditions": [device_cond, state_is(1)],
+                "from": from_event(c),
+                "to": [to_event, state(2)],
+                "parameters": {"basic.to_delayed_action_delay_milliseconds": cycle_timeout_ms},
+                "to_delayed_action": {"to_if_invoked": [state(0)], "to_if_canceled": []},
+            },
+            {   # press 1: start
+                "type": "basic",
+                "conditions": [device_cond],
+                "from": from_event(c),
+                "to": [to_event, state(1)],
+            },
+        ]
+
+rule = {"description": f"{RULE_DESC} ({mode})", "manipulators": manipulators}
 device_entry = {
     "identifiers": {"is_consumer": True, "vendor_id": VENDOR, "product_id": PRODUCT},
     "ignore": False,
@@ -96,7 +153,11 @@ with open(config_path, "w") as f:
     f.write("\n")
 
 hotkey = "+".join(mods + [key]) if mods else key
-print(f"Rule installed: DJI button -> {hotkey}")
+if mode == "cycle":
+    print(f"Rule installed (cycle): press 1 -> {hotkey} (start), "
+          f"press 2 -> {hotkey} (stop), press 3 -> Enter")
+else:
+    print(f"Rule installed: DJI button -> {hotkey}")
 PYEOF
 
 open -a "Karabiner-Elements"
