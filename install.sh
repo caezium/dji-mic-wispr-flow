@@ -95,7 +95,7 @@ else:
                 "type": "basic",
                 "conditions": [device_cond, state_is(2)],
                 "from": from_event(c),
-                "to": [state(0), {"key_code": "return_or_enter"}],
+                "to": [state(0), {"key_code": "return_or_enter", "repeat": False}],
             },
             {   # press 2: stop; the Enter step expires if nothing is touched
                 "type": "basic",
@@ -112,6 +112,27 @@ else:
                 "to": [to_event, state(1)],
             },
         ]
+
+    # Resync. The rule only counts presses, it can't see Flow, so the count
+    # drifts when Flow stops on its own (e.g. it cancels a recording after a
+    # mic switch) or when you send with the keyboard instead of press 3.
+    # Keyboard keys that end a dictation reset the count; they still pass
+    # through unchanged.
+    not_dji = {"type": "device_unless", "identifiers": device_cond["identifiers"]}
+    manipulators += [
+        {   # Esc (Flow's dismiss key) mid-cycle -> idle
+            "type": "basic",
+            "conditions": [not_dji, {"type": "variable_unless", "name": VAR, "value": 0}],
+            "from": {"key_code": "escape", "modifiers": {"optional": ["any"]}},
+            "to": [state(0), {"key_code": "escape"}],
+        },
+        {   # plain Return after a stop (sent by hand) -> idle; Shift+Return doesn't count
+            "type": "basic",
+            "conditions": [not_dji, state_is(2)],
+            "from": {"key_code": "return_or_enter"},
+            "to": [state(0), {"key_code": "return_or_enter"}],
+        },
+    ]
 
 rule = {"description": f"{RULE_DESC} ({mode})", "manipulators": manipulators}
 device_entry = {

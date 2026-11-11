@@ -52,9 +52,21 @@ MODE=cycle ./install.sh
 
 You can edit the text with the keyboard between press 2 and press 3. If
 nothing is touched for 60 s after press 2, the Enter step expires and the next
-press starts a new dictation (`CYCLE_TIMEOUT_MS` changes this). If you also
-start/stop Flow from the keyboard the cycle can get one step out of sync; one
-extra press realigns it. Re-run without `MODE` to go back to plain toggling.
+press starts a new dictation (`CYCLE_TIMEOUT_MS` changes this). Re-run without
+`MODE` to go back to plain toggling.
+
+**Keeping the count in sync.** The rule counts presses; it can't see Flow. So
+the count drifts when Flow stops on its own (it cancels a recording when the
+mic switches, for example) or when you send with the keyboard instead of
+press 3. Two keyboard keys reset it:
+
+- **Esc** (Flow's dismiss key) at any point mid-cycle → the next press starts.
+- **Return** (without modifiers) after press 2 → the next press starts.
+  Shift+Return still just adds a new line.
+
+If it ever feels one step off, press Esc once. Setting Flow's microphone to
+"Wireless Mic Rx" rather than letting it switch mics avoids most of the
+cancelled recordings.
 
 Why a press count and not a second button or a double-press? See the notes
 under *How it works*.
